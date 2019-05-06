@@ -1,0 +1,23 @@
+package org.dataVectis.detection
+
+import java.io.FileInputStream
+import java.util.Properties
+
+
+class Prop {
+
+
+  def getProp(propertyName: String): String = {
+
+
+    val properties = new Properties()
+    properties.load(new FileInputStream("Config/config.properties"))
+    val property = properties.getProperty(propertyName)
+    property.toString
+
+
+
+  }
+
+
+}
