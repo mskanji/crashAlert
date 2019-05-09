@@ -3,9 +3,8 @@ package org.dataVectis.detection
 
 import java.util.Calendar
 import java.util.logging.{Level, Logger}
-
 import org.apache.kafka.common.serialization.StringDeserializer
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.{SparkSession}
 import org.apache.spark.streaming.kafka010.KafkaUtils
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
@@ -13,16 +12,19 @@ import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
 
 
-
-
-
 object Consumer {
 
   def main(args: Array[String]): Unit = {
 
-
     val logger = Logger.getLogger(getClass.getName)
     val p = new Prop
+    val PAPER_CRASH_MAX_REMAINING = p.getProp("PAPER_CRASH_MAX_REMAINING").toInt
+    val PAPER_THERSHOLD_ALERT = p.getProp("PAPER_THERSHOLD_ALERT").toDouble
+    val currentTime = Calendar.getInstance()
+    val currentHour = currentTime.get(Calendar.HOUR_OF_DAY)
+    var LOG_DATA_RECEIVED_KAFKA = "test_String"
+
+
     val conf = new SparkConf().setMaster("local[*]").setAppName(p.getProp("APP_NAME"))
     val spark = SparkSession.builder().config(conf).getOrCreate()
     val sc = spark.sparkContext
@@ -42,65 +44,52 @@ object Consumer {
       "auto.offset.reset" -> "latest",
       "enable.auto.commit" -> (false: java.lang.Boolean)
     )
-    val topics = Array("event")
 
+    val topics = Array("event")
     val stream = KafkaUtils.createDirectStream[String, String](
       streamingContext,
       PreferConsistent,
       Subscribe[String, String](topics, kafkaParams)
     )
+    def mappingFunction(key: String, value: Option[Long], state: State[Long]):  (String , Long , Long , String)  = {
 
-    def mappingFunction(key: String, value: Option[Long], state: State[Long]): (String, Long, Long, String) = {
-      val p = new Prop
-      val PAPER_CRASH_MAX_REMAINING = p.getProp("PAPER_CRASH_MAX_REMAINING").toInt
-      val PAPER_THERSHOLD_ALERT = p.getProp("PAPER_THERSHOLD_ALERT").toDouble
       value match {
         case Some(v) => {
           state.update(state.getOption().getOrElse(0L) + v)
-          var msg = "test_String"
           val remaining = PAPER_CRASH_MAX_REMAINING - state.get()
-          if (remaining < PAPER_THERSHOLD_ALERT) {
-            msg = "Alert"
-          } else {
-            msg = "Not alert"
-          }
-          (key, v , remaining, msg)
+          if ( remaining>=1 ) { // if not TIME OUT
+            if (currentHour > 8 && currentHour < 18) { // if current time's in [6,18]
+              if (remaining < PAPER_THERSHOLD_ALERT) {
+                LOG_DATA_RECEIVED_KAFKA = "Alert"
+              } else {
+                LOG_DATA_RECEIVED_KAFKA = "Not alert"
+              }
+              (key, v, remaining, LOG_DATA_RECEIVED_KAFKA)
+            } else {
+              LOG_DATA_RECEIVED_KAFKA = "TIME OUT"
+              (key, v, remaining, LOG_DATA_RECEIVED_KAFKA)
+            }
+          }else{
+            LOG_DATA_RECEIVED_KAFKA = s"THE PRINTER $key IS OUT"
+            (key, 0 , 0 , LOG_DATA_RECEIVED_KAFKA)}
         }
-        case _ => (key, 0L, 0L, "")
+        case _ => {
+          LOG_DATA_RECEIVED_KAFKA = s"DATA NOT RECEIVED YET"
+          (key, 0L, state.getOption().getOrElse(0L), LOG_DATA_RECEIVED_KAFKA)}
+
       }
     }
-
     val spec = StateSpec.function(mappingFunction _).timeout(Durations.seconds(5))
-
-    val reducedRDD = stream
+    val reducedRDD = stream //  Json ===> RDD
       .map(rdd => rdd.value.split(","))
       .map(array => (
         array(0).split(":")(1).trim.replaceAll("\\W", ""),
-        array(1).split(":")(1).trim.replaceAll("\\W", "").toLong))
-      .reduceByKey((x, y) => x + y)
+        array(1).split(":")(1).trim.replaceAll("\\W", "").toLong)
+      ).reduceByKey((x, y) => x + y) // reduce by key ( printer ID )  and count the paper's used.
 
-
-    import spark.implicits._
-
-
-    val cumSumRdd = reducedRDD.mapWithState(spec)
+    val cumSumRdd = reducedRDD.mapWithState(spec) // update states changes (mapWithStates)
     cumSumRdd.print
-    cumSumRdd.saveAsTextFiles("output"+"_"+Calendar.getInstance.getTimeInMillis.toString   )
-
-
-    /*cumSumRdd.foreachRDD( rdd => rdd.toDF ( "id" , "cumSum" , "remaining" , "state")
-      .repartition(1)
-      .write
-      .mode(SaveMode.Overwrite)
-      .format("json")
-      .save("out" + Calendar.getInstance().getTimeInMillis.toString)*/
-
-
-
-
-
-
-
+    cumSumRdd.saveAsObjectFiles("output"+"_"+Calendar.getInstance.getTimeInMillis.toString   )
 
 
     streamingContext.start()
@@ -108,10 +97,4 @@ object Consumer {
 
 
   }
-
-  def updateFunction(newData: Seq[Long], state: Option[Long]) = {
-    val newState = state.getOrElse(0L) + newData.sum
-    Some(newState)
-  }
-
 }
