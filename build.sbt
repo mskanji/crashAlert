@@ -9,3 +9,5 @@ libraryDependencies += "org.apache.spark" %% "spark-core" % "2.4.1"
 libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.4.2"
 libraryDependencies += "org.apache.spark" % "spark-streaming_2.12" % "2.4.2"
 libraryDependencies += "org.apache.spark" %% "spark-streaming-kafka-0-10" % "2.4.1"
+libraryDependencies += "org.elasticsearch" % "elasticsearch-hadoop" % "7.0.1"
+
