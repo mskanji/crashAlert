@@ -1,0 +1,10 @@
+[debug] Acquiring lock on file C:\Users\LENOVO\Desktop\AnomaliesDetection\project\target\.sbt-compilation-infos\anomaliesdetection-compile\.sbt-idea-lock ...
+[error] C:\Users\LENOVO\Desktop\AnomaliesDetection\src\main\scala\org\dataVectis\detection\Producer.scala:22:22: object java.util.ArrayList is not a value
+[error]     val list =  util.ArrayList [Long]
+[error]                      ^
+[warn] C:\Users\LENOVO\Desktop\AnomaliesDetection\src\main\scala\org\dataVectis\detection\sendCsvFile.scala:3:17: imported `Event' is permanently hidden by definition of object Event in package detection
+[warn] import java.awt.Event
+[warn]                 ^
+[warn] one warning found
+[error] one error found
+[debug] Releasing lock on file C:\Users\LENOVO\Desktop\AnomaliesDetection\project\target\.sbt-compilation-infos\anomaliesdetection-compile\.sbt-idea-lock.

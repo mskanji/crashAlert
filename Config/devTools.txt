@@ -1,0 +1,8 @@
+GET moeez/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+GET /_cat/indices?v
